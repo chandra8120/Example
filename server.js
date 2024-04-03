@@ -1,26 +1,25 @@
-
-
-import express from 'express'
+import express from 'express';
 import mongoose from 'mongoose';
-import bcrypt from 'bcryptjs'
-import jwt from 'jsonwebtoken'
-import dotenv from 'dotenv'
-import cors from 'cors'
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import dotenv from 'dotenv';
+import cors from 'cors';
+
 const app = express();
 
-dotenv.config()
+dotenv.config();
 app.use(express.json());
 app.use(cors());
+
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB connected successfully"))
+  .then(() => console.log('MongoDB connected successfully'))
   .catch((error) => console.log(error, 'MongoDB did not connect'));
-
-
 
 const userSchema = new mongoose.Schema({
   email: { type: String, unique: true },
   password: String,
-  token: String
+  token: String,
+  lastDevice: String // Field to store the last device identifier
 });
 
 const User = mongoose.model('User', userSchema);
@@ -49,8 +48,14 @@ app.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
+    const deviceIdentifier = req.ip + req.headers['user-agent'];
+    if (user.lastDevice && user.lastDevice !== deviceIdentifier) {
+      return res.status(403).json({ message: 'User is already logged in from another device' });
+    }
+
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
     user.token = token;
+    user.lastDevice = deviceIdentifier;
     await user.save();
 
     res.status(200).json({ message: 'Login successful', token });
@@ -76,4 +81,3 @@ app.get('/protected', async (req, res) => {
 app.listen(process.env.PORT, () => {
   console.log(`Server is running on port ${process.env.PORT}`);
 });
-//
